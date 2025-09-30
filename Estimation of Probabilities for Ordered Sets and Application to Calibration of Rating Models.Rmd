@@ -1,0 +1,266 @@
+---
+title: "Estimation-of-Probabilities-for-Ordered-Sets-and-Application-to-Calibration-of-Rating-Models"
+author: 
+- "Chantres Arrieta Nikole"
+- "Corona López José Luis"
+- "Popoca Rivas Brayan Nain"
+date: "2025-04-21"
+output: pdf_document
+---
+
+```{r}
+library(ggplot2)
+library(tidyr)
+```
+
+# Introdución
+
+Datos históricos
+
+```{r}
+Rating <- c("AAA", "AA", "A", "BBB", "BB", "B", "CCC", "CC", "C")
+Exposures <- rep(100, 9)
+Defaults <- c(1, 0, 0, 1, 2, 1, 2, 3, 4)
+
+datos <- data.frame(Rating, Exposures, Defaults)
+datos
+
+datos$PD_Ingenuas <- datos$Defaults / datos$Exposures
+datos
+barplot(datos$PD_Ingenuas, col = "skyblue", names.arg = Rating)
+```
+
+# Desarrollo
+
+## Enfoque Bayesiano Objetivo / No informativo
+
+La presentación de los principales métodos bayesianos se limitará al problema de estimación de probabilidades. Sin embargo, es importante considerar que estos métodos se aplican naturalmente a muchos otros problemas.
+
+Usamos la distribución binomial. Suponiendo "n" observaciones y "x" valores predeterminados, esta medición de consistencia se puede calcular mediante la probabilidad binomial de observar “x” éxitos en “n” experimentos con una probabilidad de éxito de "PD":
+
+
+$$
+Bin(n,x,PD)= \binom{x}{n}PD^x(1-PD)^{n-x}
+$$
+
+Se puede calcular promediando cada escenario de PD utilizando un peso proporcional a la medida de consistencia binomial
+
+$$
+\
+\overline{PD} = \frac{\int_{0}^{1} PD \cdot \binom{n}{x} PD^{x} (1 - PD)^{n - x} \cdot 1 \, dPD}{\int_{0}^{1} \binom{n}{x} PD^{x} (1 - PD)^{n - x} \cdot 1 \, dPD}
+\
+$$
+
+
+Donde para cada valor de PD, el producto de estos dos pesos es proporcional a la cantidad de escenarios, en consonancia con ese valor de PD y con la cantidad de “x” incumplimientos observados.
+
+
+$$
+\dfrac{x+1}{n+2}
+$$
+
+Este resultado, para un valor n elevado, se acerca más a la estimación ingenua de la PD para x + 1 éxitos.
+
+El peso “uno”, dado que representa un peso uniforme, puede parecer una elección objetiva. Hay dos cuestiones una es la falta de invariancia después de un cambio en la parametrización del problema y la no minimización de la información agregada al problema.
+  
+Definir una nueva variable $\theta$, que va de 0 a $\dfrac{\pi}{2}$, $PD=cos(\theta)^2$
+  
+$$
+Bin(n,x,\theta)= \binom{x}{n}cos(\theta)^{2x}sen(\theta)^{2n-2x}
+$$
+
+Tenemos que asignar una distribución uniforme al parámetro $\theta$, pero, en este caso, si transformamos el problema de nuevo a la forma de la ecuación, el parámetro PD daría una distribución no uniforme.
+
+Regla priori de Jeffrey
+
+$$
+\pi(PD)= \dfrac{1}{\sqrt{PD(1-PD)}}
+$$
+Estimación Bayesiana
+
+$$
+\overline{PD} = \frac{\int_{0}^{1} PD \cdot \binom{n}{x} PD^{x} \left(1 - PD\right)^{n-x} \cdot \pi(PD) \, dPD}{\int_{0}^{1} \binom{n}{x} PD^{x} \left(1 - PD\right)^{n-x} \cdot \pi(PD) \, dPD}
+$$
+  
+Se obtine
+
+$$
+\overline{PD} = \dfrac{x+0.5}{n+1}
+$$
+
+Ventajas
+
+Representa un valor intermedio entre la estimación ingenua de la PD para “x + 1” éxitos y la estimación ingenua de la PD para “x” éxitos.
+
+Este método proporciona un procedimiento objetivo para generar una estimación distinta de cero de la PD para datos históricos con valores predeterminados de cero.
+
+Minimización de la información agregada al problema.
+
+Encontrar una prior que maximiza la Información Mutua entre los datos observados y los parámetros
+
+$$
+\pi(PD)= \dfrac{1}{\sqrt{PD(1-PD)}}
+$$
+
+La optimización para encontrar la distribución de los parámetros que maximice las Informaciones Mutuas es computacionalmente difícil. Sin embargo, se puede demostrar que, para el problema Binomial, la Distribución a Prior de la PD que encuentra su máximo coincide con la Distribución a Prior de Jeffreys 
+
+## Simulación de escenarios
+
+Se debe respetar la relación 
+
+$$
+PD_i < PD_{i+1}
+$$
+
+
+O, en términos de $\theta$
+
+$$
+\theta_{i+1} < \theta_{i}
+$$
+
+Considerando la restricción descrita, el Método de Simulación de Montecarlo propone
+
+Comienza a simular un escenario para $\theta$
+Luego generará un escenario para $\theta_2$, restringido a la condición de que $\theta_2$ debe ser menor que $\theta_1$
+Luego generará un escenario para $\theta_2$, restringido a la condición de que $\theta_3$ debe ser menor que $\theta_2$
+Y este procedimiento continúa operando recursivamente hasta llegar a la simulación de la última variable.
+
+Dado esto, necesitamos conocer las distribuciones marginales
+Distribución marginal de $\theta_1$
+Distribución de $\theta_2$ condicionada a la ocurrencia de $\theta_1$
+Distribución de $\theta_3$ condicionada a la ocurrencia de $\theta_2$
+Distribución de $\theta_m$ condicionada a la ocurrencia de $\theta_{m-1}$
+
+
+```{r}
+set.seed(1)
+
+r <- length(Rating)
+n <- 1000000
+
+# Función para simular theta y PDs ordenadas
+simular_pds_ordenadas <- function(r, n) {
+  theta <- matrix(NA, nrow = n, ncol = r)
+  PD <- matrix(NA, nrow = n, ncol = r)
+  
+  for (i in 1:n) {
+    u <- runif(r)
+    theta[i, r] <- (u[r] ^ (1/(r))) * (pi/2)  
+    for (j in (r - 1):1) {
+      theta[i, j] <- (u[j] ^ (1/j)) * theta[i, j+1]
+    }
+    PD[i, ] <- cos(pi/2 - theta[i, ])^2
+  }
+  return(PD)
+}
+
+PD_simuladas <- simular_pds_ordenadas(r, n)
+```
+
+Calculamos los pesos
+
+```{r}
+calcular_pesos <- function(PD_simuladas, datos) {
+  pesos <- numeric(nrow(PD_simuladas))
+  for (i in 1:nrow(PD_simuladas)) {
+    lik <- prod(dbinom(datos$Defaults, size = datos$Exposures, prob = PD_simuladas[i, ]))
+    pesos[i] <- lik
+  }
+  return(pesos)
+}
+
+pesos <- calcular_pesos(PD_simuladas, datos)
+
+PD_estimadas <- colSums(PD_simuladas * pesos) / sum(pesos)
+names(PD_estimadas) <- datos$Rating
+print(PD_estimadas)
+```
+
+
+Gráficamos nuestras Marginales
+
+```{r}
+# Convertir a formato
+colnames(PD_simuladas) <- paste0("PD", 1:ncol(PD_simuladas))
+pd_df <- as.data.frame(PD_simuladas)
+pd_long <- pivot_longer(pd_df, cols = everything(),
+                        names_to = "Rating", values_to = "PD")
+
+# Graficar las marginales
+ggplot(pd_long, aes(x = PD)) +
+  geom_density(fill = "gold2", alpha = 0.5) +
+  facet_wrap(~ Rating, ncol = 3, scales = "free") +
+  labs(title = "Distribuciones marginales simuladas de PDs",
+       x = "PD", y = "Densidad") +
+  theme_minimal()
+```
+
+
+Resumen de las probabilidades
+
+```{r}
+# Añadimos las probabilidades
+
+datos$Bayes <- (datos$Defaults + 0.5) / (datos$Exposures + 1)
+datos$Bayes9D <- round(PD_estimadas, 9)
+datos
+
+# Gráfico
+resultados_long <- pivot_longer(datos, cols = -c(Rating, Exposures, Defaults), names_to = "Metodo", values_to = "PD")
+resultados_long$Rating <- factor(resultados_long$Rating, 
+                                levels = c("AAA", "AA", "A", "BBB", "BB", "B", "CCC", "CC", "C"))
+ggplot(resultados_long, aes(x = Rating, y = PD, color = Metodo, group = Metodo)) +
+  geom_line() +  # Líneas que conectan puntos
+  geom_point() +  # Puntos en cada valor
+  labs(title = "Métodos de Estimación de PD", y = "Probabilidad de Default") +
+  theme_minimal()
+
+```
+
+
+# Conclusión
+
+Los enfoques tradicionales para estimar probabilidades suelen depender de supuestos subjetivos, lo que introduce un riesgo significativo en su aplicación práctica. Pequeñas variaciones en estos criterios subjetivos pueden alterar sustancialmente los resultados, afectando la validez de las conclusiones económicas derivadas de dichas estimaciones
+
+Como alternativa, los métodos bayesianos propuestos en este trabajo proporcionan un marco objetivo para calcular probabilidades, incluso en casos complejos como:
+
+Carteras con bajas tasas de incumplimiento.
+
+Sistemas de calificación con múltiples niveles ordenados.
+
+El método, aunque computacionalmente exigente, puede adaptarse a distintos contextos con ajustes razonables.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
