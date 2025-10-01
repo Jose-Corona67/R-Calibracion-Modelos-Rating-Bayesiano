@@ -28,7 +28,7 @@ Implementación práctica de la metodología propuesta por Serenelli & Delfau (2
 
 ## Autores
 
--Chantres Arrieta Nikole
+- Chantres Arrieta Nikole
 - Corona López José Luis
 - Popoca Rivas Brayan Nain
 
